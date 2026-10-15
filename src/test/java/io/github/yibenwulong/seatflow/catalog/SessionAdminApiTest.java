@@ -69,7 +69,8 @@ class SessionAdminApiTest {
         String admin=token("admin");
         for (var change:List.of(Map.of("startsAt","2020-01-01T00:00:00Z"),
                 Map.of("salesStartAt","2099-12-03T11:00:00Z"),Map.of("salesEndAt","2099-12-04T11:00:00Z"),
-                Map.of("salesStartAt","2099-12-03T10:00:00Z","salesEndAt","2099-12-03T10:00:00Z"))) {
+                Map.of("salesStartAt","2099-12-03T10:00:00Z","salesEndAt","2099-12-03T10:00:00Z"),
+                Map.of("salesStartAt","2099-12-03T10:00:00.000000001Z","salesEndAt","2099-12-03T10:00:00.000000002Z"))) {
             var body=valid(); body.putAll(change);
             assertRejectedWithoutRows(admin,body,400);
         }
@@ -100,6 +101,12 @@ class SessionAdminApiTest {
         body=valid(); body.put("hallId",900);
         assertRejectedWithoutRows(admin,body,400);
         jdbc.update("UPDATE hall_seat SET enabled=false WHERE hall_id=1");
+        assertRejectedWithoutRows(admin,valid(),400);
+    }
+
+    @Test void rejectsMalformedLayoutLabelsWithoutCreatingRows() throws Exception {
+        String admin=token("admin");
+        jdbc.update("UPDATE hall_seat SET block_id=' ' WHERE id=1");
         assertRejectedWithoutRows(admin,valid(),400);
     }
 
