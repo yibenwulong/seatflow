@@ -35,8 +35,102 @@ real RSA signatures and adapter field mapping with a mocked SDK transport.
 They do not make network requests or establish that a live sandbox account
 works. No live sandbox test has been run.
 
+The sandbox refund API does not supply a separate refund transaction ID.
+Its stored gateway_refund_id is a bounded, deterministic local reference to
+the transaction/request pair. Provider reconciliation uses the actual payment
+transaction ID and refund_no (out_request_no), not that local reference.
+
 Primary references:
 
 - [Official Java SDK](https://github.com/alipay/alipay-sdk-java-all)
 - [Alipay refund request and retry semantics](https://aipay.alipay.com/docs/subscribe/api-list/other-basic-interfaces/alipay-trade-refund.html)
 - [Alipay sandbox Java gateway example](https://aipay.alipay.com/products)
+
+## HTTP contract
+
+All paths start with `/api/v1`. User routes require a bearer token and derive
+the user ID from the verified identity. The configured provider is
+`seatflow.payment.provider` (default `mock`). Select `alipay` only after
+enabling/configuring the sandbox bean.
+
+| Method/path | Request | Response |
+| --- | --- | --- |
+| POST /orders/{orderId}/payments | no body | PaymentView |
+| POST /dev/payments/{id}/complete | no body; id is PaymentView.id | {"status":"PROCESSED"} |
+| POST /payments/{provider}/notify | gateway form fields | plain text success after verified processing |
+| POST /orders/{orderId}/refunds | no body | RefundView |
+| GET /orders/{orderId}/refunds | no body | RefundView array |
+
+PaymentView fields: `id` (payment intent ID), `orderId`, `provider`,
+`merchantRequestNo`, `transactionId`, `amount`, `checkoutUrl`. IDs are
+strings; amount is a JSON number. Mock returns a transaction ID and null
+checkoutUrl; sandbox precreate returns its QR content in checkoutUrl and has
+no transaction ID until notification.
+
+RefundView fields: `id`, `orderId`, `refundNo`, `type`, `amount`,
+`status`, `attempts`, `nextAttemptAt` (UTC ISO timestamp or null),
+`lastError` (null or safe failure category). POST refunds only enqueues
+the operation; callers poll GET for completion. A replay returns the same
+normal refund record. Other-user access returns 403.
+
+Development completion registers only when there is at least one active
+profile and every active profile is exactly local or test. Mixed profiles
+(including local,staging) do not mount the route. Completing an expired or
+cancelled mock payment intentionally models late successful funds and queues
+compensation. Replaying the same transaction has no second financial effect.
+It is not a production payment shortcut.
+
+## Transaction and worker contract
+
+`PaymentService.create(userId,orderId)` checks ownership, UNPAID state and the
+deadline under an order lock, persists a stable per-order/provider intent in a
+short transaction, then calls the gateway outside a transaction.
+`confirm(VerifiedPayment)` accepts trusted adapter output only. HTTP binds form
+fields to NotificationInput and verifies them first. Confirmation locks the
+order, then reads Clock; only `now < expireAt` may sell HELD seats. Exact/late
+callbacks expire an unscanned UNPAID order in the same transaction and enqueue
+LATE_PAYMENT. Any additional distinct successful transaction after an existing
+collection enqueues DUPLICATE_PAYMENT, including a second collection on a
+cancelled order whose first collection was late. Identical transaction replay makes
+no writes.
+
+`RefundService.process(long refundId)` is the worker entry point. It suspends
+any caller transaction; local changes use separate short transactions that
+lock order, then refund record. The worker selects IDs with statuses other than
+COMPLETED/FAILED, null/due next_attempt_at, and null/expired lease_until, in ID order.
+Do not filter attempts below 10: an expired PROCESSING lease on attempt 10
+needs to become FAILED.
+
+States:
+
+- PENDING: queued or waiting for another gateway attempt.
+- PROCESSING: claimed for 30 seconds; attempts incremented under the order lock.
+- GATEWAY_SUCCEEDED: external success checkpoint persisted, local completion
+  still pending. Recovery skips the gateway call.
+- COMPLETED: local completion committed; next_attempt_at/lease cleared.
+- FAILED: ten attempts exhausted; retained for operator investigation.
+
+Failures record a safe phase/category, clear the owned lease, and schedule
+1, 2, 4, 8, 16, 32, then 60-second capped retry intervals. process rethrows
+after recording a failed attempt; the worker must catch each row's exception
+and continue. Ineligible, terminal, missing or actively leased IDs are no-ops.
+Gateway success before checkpoint failure is recovered using the same
+refund_no; it must not create a second external refund. A checkpoint is saved
+before the final local completion transaction.
+
+NORMAL refund requests are whole-order and must precede show start. Completion
+releases only that order's SOLD seats in increasing seat ID order and sets
+REFUNDED. Ownership inconsistency aborts the entire local completion.
+LATE_PAYMENT and DUPLICATE_PAYMENT only reconcile funds, preserving the
+order's business terminal state and any new owner's seats.
+
+Outbox events are committed with local order/seat/funds state. Event types:
+ORDER_PAID, REFUND_REQUESTED, ORDER_REFUNDED,
+PAYMENT_COMPENSATION_REQUESTED, PAYMENT_COMPENSATION_COMPLETED. All have order
+ID aggregate and the same payload as booking: string orderId/sessionId and ISO
+expireAt. Joined expiration also emits ORDER_CANCELLED.
+
+The Task6 worker owns polling/configuration; this package owns claims,
+retries and funds transitions. The flag is
+`seatflow.payment.refund-worker-enabled` (default true). No payment logic depends on MQ
+delivery for refund retry eligibility.

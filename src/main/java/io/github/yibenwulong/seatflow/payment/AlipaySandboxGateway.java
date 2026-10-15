@@ -49,7 +49,11 @@ public final class AlipaySandboxGateway implements PaymentGateway {
             var response=client.execute(request);
             if(!"10000".equals(response.getCode()) || !response.isSuccess() || !instruction.transactionId().equals(response.getTradeNo())
                     || response.getRefundFee()==null || new BigDecimal(response.getRefundFee()).compareTo(instruction.amount())!=0) throw unavailable();
-            return new GatewayRefund(instruction.refundNo(),instruction.transactionId()+":"+instruction.refundNo());
+            // This API has no distinct refund transaction ID. Keep a bounded,
+            // deterministic reference to the transaction/request pair.
+            String reference="alipay-"+java.util.UUID.nameUUIDFromBytes(
+                    (instruction.transactionId()+"\n"+instruction.refundNo()).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            return new GatewayRefund(instruction.refundNo(),reference);
         } catch(AlipayApiException | NumberFormatException ex) { throw unavailable(); }
     }
     private static ApiException invalid() { return new ApiException(HttpStatus.BAD_REQUEST,"INVALID_NOTIFICATION","Invalid payment notification"); }

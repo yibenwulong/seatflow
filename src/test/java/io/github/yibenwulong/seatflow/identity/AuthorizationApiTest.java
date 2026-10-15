@@ -125,7 +125,7 @@ class AuthorizationApiTest {
     @Test void futureMutationsDefaultToProtectedAndDevCompletionRequiresIdentity() throws Exception {
         mvc.perform(post("/api/v1/future-feature")).andExpect(status().isUnauthorized());
         mvc.perform(post("/api/v1/dev/payments/1/complete")).andExpect(status().isUnauthorized());
-        mvc.perform(post("/api/v1/payments/mock/notify")).andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("NOT_FOUND"));
+        mvc.perform(post("/api/v1/payments/mock/notify")).andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("INVALID_NOTIFICATION"));
     }
 
     @Test void adminProtectionUsesMvcMappingWhenPathContainsMatrixParameters() throws Exception {

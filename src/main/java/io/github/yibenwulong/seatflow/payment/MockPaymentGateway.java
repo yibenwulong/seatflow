@@ -112,4 +112,3 @@ public class MockPaymentGateway implements PaymentGateway {
     private record Fact(String merchant,BigDecimal amount,String status) {}
     private record RefundFact(String txn,BigDecimal amount,String id) {}
 }
-

@@ -5,4 +5,3 @@ public interface PaymentGateway {
     VerifiedPayment verifyNotification(NotificationInput input);
     GatewayRefund refund(RefundInstruction instruction);
 }
-

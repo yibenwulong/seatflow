@@ -3,4 +3,3 @@ import java.util.Map;
 public record NotificationInput(Map<String,String> fields) {
     public NotificationInput { fields = Map.copyOf(fields); }
 }
-

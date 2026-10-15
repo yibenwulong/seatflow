@@ -12,6 +12,17 @@ import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 class AlipaySandboxGatewayTest {
+    @Test void refundReferenceFitsLedgerForMaximumLengthAlipayTransactionNumber() throws Exception {
+        var client=mock(AlipayClient.class);
+        String transaction="t".repeat(64);
+        var response=new AlipayTradeRefundResponse(); response.setCode("10000"); response.setTradeNo(transaction); response.setRefundFee("280.00");
+        when(client.execute(any(AlipayTradeRefundRequest.class))).thenReturn(response);
+        var gateway=new AlipaySandboxGateway(client,"app","seller","key","https://merchant.example/notify");
+        var instruction=new RefundInstruction("refund-"+UUID.randomUUID(),transaction,new BigDecimal("280.00"));
+        var result=gateway.refund(instruction);
+        assertThat(result.gatewayRefundId().length()).isLessThanOrEqualTo(100);
+        assertThat(gateway.refund(instruction)).isEqualTo(result);
+    }
     @Test void disabledSandboxNeedsNoSecretsAndEnabledSandboxRequiresAllConfiguration() {
         var runner=new org.springframework.boot.test.context.runner.ApplicationContextRunner().withUserConfiguration(PaymentGatewayConfiguration.class);
         runner.run(context -> assertThat(context).doesNotHaveBean(AlipaySandboxGateway.class));
