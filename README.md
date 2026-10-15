@@ -46,12 +46,12 @@ python tools/consistency.py ORDER_ID
 
 ## 设计与证据
 
-- [API](docs/api.md)、[架构与边界](docs/architecture.md)、[数据库](docs/database.md)、[身份认证](docs/authentication.md)、[订座事务](docs/booking.md)
+- [API](docs/api.md)、[架构与边界](docs/architecture.md)、[数据库](docs/database.md)、[身份认证](docs/authentication.md)、[订座事务](docs/booking.md)、[支付退款](docs/payments.md)、[消息恢复](docs/messaging.md)
 - [测试入口与验证状态](docs/testing/README.md)、[三项并发/恢复实验](docs/testing/experiments.md)、[开发缺陷复盘与测试开发面试说明](docs/testing/engineering.md)
 - [已批准设计与计划](docs/superpowers/README.md)、[来源与许可](docs/provenance.md)
 
 已保留的真实 MySQL 竞争观察包括：32 用户抢一座，1 成功、31 冲突，数据库只有 1 单/1 明细/1 占座；24 个重叠连座请求，4 成功、20 冲突，4 单完整占有 10 座。原始计数见 [JSON](docs/testing/booking-observations.json)。这些是正确性实验，不是吞吐或延迟基准。
 
-当前交付阶段已验证 Java 快速测试、检查器固定案例和原生 MySQL 检查器 smoke。此工作站没有 Docker/RabbitMQ；完整支付演示和消息/容器验收待合并已审阅运行时代码及 CI 实际执行，状态详见测试文档。项目不声称生产高可用、支付宝沙箱联调或未经实测的 QPS。
+合并运行时已通过 Java **59 项快速测试**及打包；工具 **22 项测试**和真实 MySQL 检查器 smoke 已通过。原生 MySQL 8.0.44、Redis 5.0.14.1 环境实际 TCP 演示完成两连座支付与自动退款，检查器确认收退均为 **560.00**、两座恢复可售（[记录](docs/testing/native-demo-observation.json)）。该演示关闭消息发布/监听，启用到期和退款 worker；此工作站没有 Docker/RabbitMQ，消息传输、Compose 和托管 CI 仍待实际执行。项目不声称生产高可用、支付宝沙箱联调或未经实测的 QPS。
 
 Copyright © 2026 yibenwulong。采用 [MIT License](LICENSE)。

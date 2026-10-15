@@ -37,7 +37,7 @@ Reports and failure logs are uploaded with `if: always()`. Pipeline failure
 cannot be hidden by `tee`: test steps enable `pipefail`. Compose cleanup removes
 only its CI project and volumes.
 
-## Verification ledger (delivery stage)
+## Verification ledger
 
 - Reviewed booking base: Java fast suite **49 tests**, zero failures/errors/skips.
 - Checker TDD: initial **12 fixed tests**, **9 expected assertion failures**;
@@ -54,12 +54,43 @@ only its CI project and volumes.
   The SQL-induced cases are not HTTP payment/booking validation.
 - Previous reviewed tasks ran real MySQL booking/auth/admin and Redis cache tests.
   Preserved booking observations appear in [experiments](experiments.md).
-- Full payment HTTP demo after reviewed runtime integration: **pending**.
+- Merged runtime `./mvnw.cmd -B -ntp package`: **59 fast tests**, zero
+  failures/errors/skips, BUILD SUCCESS. This command does not execute IT.
+- Actual native TCP demo after reviewed runtime integration: login, catalog/map,
+  two adjacent seats, payment creation/Mock completion, PAID query, refund request,
+  scheduled worker completion and REFUNDED query all succeeded. The subsequent
+  real CLI snapshot had no violations, two AVAILABLE/unowned seats, one REFUNDED
+  collection of **560.00**, one COMPLETED NORMAL refund of **560.00**, and no
+  pending/failed refunds. [Recorded observation](native-demo-observation.json).
+  It used a fresh UUID schema on native MySQL8.0.44 and Redis5.0.14.1; the owned
+  application process was stopped and only that schema dropped afterward.
+  Publisher/listener were false, expiry/refund worker true; it establishes
+  the native HTTP/automatic-refund lifecycle without broker delivery.
 - RabbitMQ delivery/recovery and Docker/Compose execution: **not executed locally**;
   this workstation has neither runtime. CI workflow definition alone is not proof.
 - No branch coverage percentage has been collected. Suite counts are execution
   counts, not coverage. Improve branch coverage using the concrete gaps identified
   by review and the failure matrix, rather than inventing a percentage.
 
-Final runtime/CI verification must update this ledger with observed results.
+Reviewed runtime recovery evidence was collected in these separate executions:
+
+| Execution | Observed result | Scope |
+|---|---|---|
+| Payment broad regression before final classification delta | 55 fast + 48 IT, all zero failures/errors/skips | real MySQL/Redis, includes existing booking/auth/cache |
+| Final payment classification delta | 55 fast + 18 payment IT, all zero | 7 PaymentStateIT, 8 RefundRecoveryIT, 2 MockGatewayIT, 1 actual TCP PaymentAuthorizationIT |
+| Final worker/messaging regression | 59 fast + 21 affected IT, all zero | 3 RefundWorkerIT, 8 RefundRecoveryIT, 10 broker-free messaging/expiry/scheduler cases |
+
+After the one extra payment classification case there are 49 distinct IT in that
+Task5 inventory: 31 unchanged cases passed in the broad run and 18 affected cases
+passed in the final scoped run. **There was no single final 49-IT full run.** Do
+not add overlapping suite counts as if they were distinct cases. The worker run
+adds actual scheduled polling/continuation evidence while using simulated gateway
+facts persisted in real MySQL. Five fast Alipay adapter tests use real RSA
+signatures and offline SDK transport; they do not verify a live sandbox.
+
+Actual broker entry was attempted locally before the final worker stage:
+OutboxDeliveryIT reported three explicit missing-SPRING_RABBITMQ_HOST errors and
+zero skips. No broker operation ran; real confirm/return, TTL and delivery tests
+remain for hosted CI. Container tags are metadata-checked, not locally pulled.
+Hosted CI verification must update this ledger with its observed result.
 See [engineering notes](engineering.md) and [checker limitations](consistency.md).

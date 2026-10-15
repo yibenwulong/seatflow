@@ -44,6 +44,23 @@ seatflow.payment.refund-worker-enabled=false
 The read-only checker does not start Spring or any worker. There is no public
 diagnostic/fault administration API. Failure injection lives in tests only.
 
+The native TCP demonstration was actually executed on 2026-10-15 with a fresh
+UUID MySQL database, local profile, native Redis and a private application port.
+For the same broker-free scope, configure your isolated MySQL/Redis variables,
+then run:
+
+```bash
+java -jar target/seatflow-0.1.0-SNAPSHOT.jar --spring.profiles.active=local --server.address=127.0.0.1 --server.port=18080 --seatflow.messaging.publisher-enabled=false --seatflow.messaging.listener-enabled=false --seatflow.messaging.expiry-enabled=true --seatflow.payment.refund-worker-enabled=true
+python tools/demo.py --base-url http://127.0.0.1:18080
+```
+
+Point the checker's six database fields at that same deployment and run
+`python tools/consistency.py ORDER_ID` using the ID printed by the demo. The
+observed run reached REFUNDED and a consistent 560.00 collection/refund snapshot;
+both selected seats were AVAILABLE with no owner. Publisher/listener were off,
+so this is not RabbitMQ delivery evidence. Outbox remains durable and pending
+until publication is enabled. Production-style Compose enables all four workers.
+
 ## Image provenance
 
 Official image metadata was inspected on 2026-10-15 for these exact tags:

@@ -1,0 +1,43 @@
+{
+  "source": "actual native Java TCP HTTP demo followed by current-deployment read-only CLI",
+  "profile": "local",
+  "flags": {
+    "seatflow.messaging.publisher-enabled": "false",
+    "seatflow.messaging.listener-enabled": "false",
+    "seatflow.messaging.expiry-enabled": "true",
+    "seatflow.payment.refund-worker-enabled": "true"
+  },
+  "mysqlVersion": "8.0.44",
+  "redisEndpoint": "isolated native Redis on port16379",
+  "httpPort": 57272,
+  "demo": {
+    "source": "actual HTTP API",
+    "sessionId": "101",
+    "orderId": "1",
+    "seats": [
+      "1",
+      "2"
+    ],
+    "paidStatus": "PAID",
+    "refundStatus": "COMPLETED",
+    "finalStatus": "REFUNDED"
+  },
+  "consistency": {
+    "consistent": true,
+    "violations": [],
+    "funds": {
+      "collected": "560.00",
+      "completedRefunds": "560.00",
+      "pendingRefundIds": [],
+      "failedRefundIds": []
+    },
+    "itemCount": 2,
+    "availableSeats": 2,
+    "orderTotal": "560.00"
+  },
+  "limits": "No RabbitMQ, Docker, live payment provider or hosted CI execution",
+  "recordedCompletionAt": "2026-10-15T06:15:51.054270Z",
+  "runtimeRevision": "19044fe0aebe6f1ab6b668ed4759f5ffe5be84c2",
+  "deliveryRevision": "9e93f6065b570e7de47051345285b99b2e1ccf52",
+  "redisVersion": "5.0.14.1"
+}

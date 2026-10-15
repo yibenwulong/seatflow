@@ -46,5 +46,5 @@ Default provider is `mock`; its checkoutUrl is null. Ordinary refunds are full
 order refunds before show start. Successful request submission does not imply
 gateway or local completion; query the persisted progress.
 
-See [authentication](authentication.md), [booking](booking.md), and the payment
-contract delivered with the runtime for detailed verification/adapter behavior.
+See [authentication](authentication.md), [booking](booking.md),
+[payments](payments.md) and [messaging](messaging.md) for the detailed contracts.
