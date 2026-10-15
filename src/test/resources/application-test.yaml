@@ -5,3 +5,8 @@ spring:
     password: ''
   flyway:
     locations: classpath:db/migration,classpath:db/demo
+seatflow:
+  messaging:
+    publisher-enabled: false
+    listener-enabled: false
+    expiry-enabled: false

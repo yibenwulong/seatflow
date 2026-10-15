@@ -8,6 +8,14 @@ spring:
   flyway:
     locations: classpath:db/migration
     clean-disabled: true
+  rabbitmq:
+    publisher-confirm-type: correlated
+    publisher-returns: true
+    connection-timeout: 2s
+    listener:
+      simple:
+        default-requeue-rejected: false
+        prefetch: 10
   jackson:
     time-zone: UTC
   data:
@@ -21,6 +29,10 @@ server:
     include-message: never
     include-stacktrace: never
 seatflow:
+  messaging:
+    publisher-enabled: true
+    listener-enabled: true
+    expiry-enabled: true
   auth:
     signing-key: ${SEATFLOW_AUTH_SIGNING_KEY:}
     token-lifetime: PT1H
