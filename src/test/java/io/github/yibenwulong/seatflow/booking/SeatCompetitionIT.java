@@ -15,10 +15,28 @@ import static org.assertj.core.api.Assertions.*;
 
 class SeatCompetitionIT {
     @Test void concurrentReplayAlsoWorksWithReadCommittedWhenWinnerCommitsBeforeInventoryRead() throws Exception {
+        concurrentReplay(Connection.TRANSACTION_READ_COMMITTED,WindowChange.NONE,false);
+    }
+    @Test void replayAfterExactSalesEndReturnsOriginalFromFreshRepeatableReadTransaction() throws Exception {
+        concurrentReplay(Connection.TRANSACTION_REPEATABLE_READ,WindowChange.SALES_END,false);
+    }
+    @Test void replayAfterExactShowStartReturnsOriginalOrder() throws Exception {
+        concurrentReplay(Connection.TRANSACTION_REPEATABLE_READ,WindowChange.SHOW_START,false);
+    }
+    @Test void replayAfterSaleClosureReturnsOriginalOrder() throws Exception {
+        concurrentReplay(Connection.TRANSACTION_READ_COMMITTED,WindowChange.CLOSED,false);
+    }
+    @Test void replayAfterSalesEndStillRejectsDifferentPayloadAsIdempotencyConflict() throws Exception {
+        concurrentReplay(Connection.TRANSACTION_REPEATABLE_READ,WindowChange.SALES_END,true);
+    }
+    private enum WindowChange { NONE, SALES_END, SHOW_START, CLOSED }
+    private static void concurrentReplay(int isolation,WindowChange change,boolean differentPayload) throws Exception {
         try(var f=new BookingFixture()) {
+            if(change==WindowChange.SALES_END)
+                f.jdbc.update("UPDATE show_session SET sales_end_at='2026-10-15 00:01:00' WHERE id=101");
             var dataSource=new org.springframework.jdbc.datasource.DelegatingDataSource(f.jdbc.getDataSource()) {
                 @Override public Connection getConnection() throws SQLException {
-                    var connection=super.getConnection(); connection.setTransactionIsolation(Connection.TRANSACTION_READ_COMMITTED); return connection;
+                    var connection=super.getConnection(); connection.setTransactionIsolation(isolation); return connection;
                 }
             };
             var jdbc=new org.springframework.jdbc.core.JdbcTemplate(dataSource);
@@ -31,15 +49,39 @@ class SeatCompetitionIT {
                     return super.findSession(sessionId);
                 }
             };
-            var service=new OrderService(new OrderRepository(jdbc),catalog,new OutboxRepository(jdbc,f.clock),
-                    new org.springframework.jdbc.datasource.DataSourceTransactionManager(dataSource),f.clock);
+            var transactions=new org.springframework.jdbc.datasource.DataSourceTransactionManager(dataSource);
+            var service=new OrderService(new OrderRepository(jdbc),catalog,new OutboxRepository(jdbc,f.clock),transactions,f.clock);
             var pool=Executors.newSingleThreadExecutor();
             try {
-                var replay=pool.submit(()->{ try { return (Object)service.create(1,explicit("read-committed",1)); } catch(ApiException e) { return e; } });
+                java.util.function.Supplier<Object> request=()->{
+                    try { return service.create(1,explicit("window-key",differentPayload?2:1)); } catch(ApiException e) { return e; }
+                };
+                var replay=pool.submit(()->{
+                    if(change==WindowChange.SALES_END && !differentPayload) {
+                        return new org.springframework.transaction.support.TransactionTemplate(transactions).execute(caller->{
+                            // Establish an outer caller's stale REPEATABLE_READ snapshot as well.
+                            assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM ticket_order",Long.class)).isZero();
+                            var result=request.get(); caller.setRollbackOnly(); return result;
+                        });
+                    }
+                    return request.get();
+                });
                 assertThat(missedKey.await(20,TimeUnit.SECONDS)).isTrue();
-                var winner=f.service.create(1,explicit("read-committed",1)); winnerCommitted.countDown();
-                assertThat(replay.get(20,TimeUnit.SECONDS)).isEqualTo(winner);
+                var winner=f.service.create(1,explicit("window-key",1));
+                switch(change) {
+                    case SALES_END -> f.clock.set(java.time.Instant.parse("2026-10-15T00:01:00Z"));
+                    case SHOW_START -> f.clock.set(java.time.Instant.parse("2099-12-01T11:00:00Z"));
+                    case CLOSED -> f.jdbc.update("UPDATE show_session SET status='CLOSED' WHERE id=101");
+                    case NONE -> { }
+                }
+                winnerCommitted.countDown();
+                var result=replay.get(20,TimeUnit.SECONDS);
+                if(differentPayload) assertThat(result).isInstanceOfSatisfying(ApiException.class,e->{
+                    assertThat(e.status().value()).isEqualTo(409); assertThat(e.code()).isEqualTo("IDEMPOTENCY_CONFLICT");
+                });
+                else assertThat(result).isEqualTo(winner);
                 assertThat(f.count("ticket_order")).isEqualTo(1);
+                assertThat(f.count("outbox_event")).isEqualTo(1); assertThat(f.held()).isEqualTo(1);
             } finally { winnerCommitted.countDown(); pool.shutdownNow(); }
         }
     }

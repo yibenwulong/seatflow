@@ -18,6 +18,10 @@ digest includes session, mode, normalized sorted explicit seat IDs, or
 adjacent count and zone. Explicit seat ordering is semantically irrelevant.
 The same key and payload returns the current original order, including its
 terminal state. Different payload returns 409 `IDEMPOTENCY_CONFLICT`.
+If the sales window closes after an initial key miss, a rejected attempt is
+rolled back and the key is checked in a fresh REQUIRES_NEW transaction before
+returning the sales rejection. This also escapes an outer caller's stale
+REPEATABLE_READ snapshot and preserves replay precedence at the exact deadline.
 
 Each create attempt uses REQUIRES_NEW. The new header, final server amount,
 all items, all AVAILABLE-to-HELD conditional updates, and ORDER_CREATED

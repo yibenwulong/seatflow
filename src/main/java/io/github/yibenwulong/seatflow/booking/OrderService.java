@@ -47,6 +47,13 @@ public class OrderService {
                 // in a fresh transaction (also avoids any outer REPEATABLE_READ snapshot).
                 return attempt.execute(status->replay(orders.findRequest(userId,request.requestId())
                         .orElseThrow(()->duplicate),digest));
+            } catch(ApiException rejection) {
+                if(!"SESSION_NOT_ON_SALE".equals(rejection.code())) throw rejection;
+                // The window may close after our initial key miss while a same-key winner
+                // commits. Replay has precedence. REQUIRES_NEW also escapes an outer caller's
+                // stale REPEATABLE_READ snapshot after the rejected attempt rolls back.
+                return attempt.execute(status->orders.findRequest(userId,request.requestId())
+                        .map(order->replay(order,digest)).orElseThrow(()->rejection));
             } catch(SeatConflict | PessimisticLockingFailureException conflict) {
                 if(index==limit-1) throw conflict("SEATS_UNAVAILABLE","Requested seats are unavailable");
             }
