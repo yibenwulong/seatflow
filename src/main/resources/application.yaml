@@ -1,0 +1,16 @@
+spring:
+  application:
+    name: seatflow
+  datasource:
+    url: ${SEATFLOW_MYSQL_URL:jdbc:mysql://localhost:3306/seatflow?connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true}
+    username: ${SEATFLOW_MYSQL_USER:seatflow}
+    password: ${SEATFLOW_MYSQL_PASSWORD:}
+  flyway:
+    locations: classpath:db/migration
+    clean-disabled: true
+  jackson:
+    time-zone: UTC
+server:
+  error:
+    include-message: never
+    include-stacktrace: never
