@@ -1,0 +1,5 @@
+PyMySQL[rsa]==1.1.2
+# Lock RSA-authentication dependencies to the versions installed for tool smoke.
+cryptography==50.0.2
+cffi==2.1.1
+pycparser==3.11

@@ -2,5 +2,8 @@
 target
 .idea
 .env
+.env.*
+.venv
+**/__pycache__
 *.log
 tmp

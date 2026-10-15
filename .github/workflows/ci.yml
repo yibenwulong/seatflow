@@ -1,0 +1,143 @@
+name: quality
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  fast:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Fast Java and fixed-data CLI tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p target
+          ./mvnw -B -ntp test 2>&1 | tee target/fast.log
+          python -m pip install -r tools/requirements.txt
+          python -m unittest discover -s tools/tests -v 2>&1 | tee target/tool-tests.log
+          python -m compileall -q tools
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: fast-reports
+          path: |
+            target/surefire-reports/
+            target/*.log
+  integration:
+    runs-on: ubuntu-24.04
+    services:
+      mysql:
+        image: mysql:8.4.11
+        env:
+          MYSQL_ROOT_PASSWORD: example-integration-root
+          MYSQL_ROOT_HOST: '%'
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -pexample-integration-root"
+          --health-interval=5s --health-timeout=5s --health-retries=30
+      redis:
+        image: redis:7.4.11-alpine
+        ports: ['6379:6379']
+        options: --health-cmd="redis-cli ping" --health-interval=5s --health-timeout=3s --health-retries=20
+      rabbitmq:
+        image: rabbitmq:4.3.6-management-alpine
+        env:
+          RABBITMQ_DEFAULT_USER: seatflow
+          RABBITMQ_DEFAULT_PASS: example-integration-rabbit
+        ports: ['5672:5672']
+        options: --health-cmd="rabbitmq-diagnostics -q ping" --health-interval=5s --health-timeout=5s --health-retries=30
+    env:
+      SEATFLOW_IT_MYSQL_URL: jdbc:mysql://127.0.0.1:3306/mysql?useSSL=false&allowPublicKeyRetrieval=true&connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true
+      SEATFLOW_IT_MYSQL_USER: root
+      SEATFLOW_IT_MYSQL_PASSWORD: example-integration-root
+      SEATFLOW_IT_REDIS_HOST: 127.0.0.1
+      SEATFLOW_IT_REDIS_PORT: '6379'
+      SPRING_RABBITMQ_HOST: 127.0.0.1
+      SPRING_RABBITMQ_PORT: '5672'
+      SPRING_RABBITMQ_USERNAME: seatflow
+      SPRING_RABBITMQ_PASSWORD: example-integration-rabbit
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+      - name: Real MySQL Redis RabbitMQ integration (missing dependency fails)
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p target
+          ./mvnw -B -ntp -Pintegration verify 2>&1 | tee target/integration.log
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Real MySQL CLI smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install -r tools/requirements.txt
+          python -m tools.mysql_smoke 2>&1 | tee target/checker-mysql.log
+      - name: Dependency logs
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p target/service-logs
+          for id in $(docker ps -aq); do docker logs "$id" > "target/service-logs/$id.log" 2>&1 || true; done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: integration-reports
+          path: |
+            target/surefire-reports/
+            target/failsafe-reports/
+            target/*.log
+            target/service-logs/
+  compose-demo:
+    runs-on: ubuntu-24.04
+    env:
+      COMPOSE_PROJECT_NAME: seatflow-ci
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Clean Compose startup and actual API demo
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p target
+          cp .env.example .env
+          docker compose -f compose.yaml -f tools/compose-ci.yaml config --quiet
+          docker compose -f compose.yaml -f tools/compose-ci.yaml up --build --wait --wait-timeout 300 2>&1 | tee target/compose-start.log
+          python tools/demo.py > target/demo.json
+          python -m pip install -r tools/requirements.txt
+          export SEATFLOW_CHECK_MYSQL_HOST=127.0.0.1 SEATFLOW_CHECK_MYSQL_PORT=13306
+          export SEATFLOW_CHECK_MYSQL_USER=seatflow SEATFLOW_CHECK_MYSQL_PASSWORD=example-seatflow-local
+          export SEATFLOW_CHECK_MYSQL_DATABASE=seatflow
+          order_id=$(python -c 'import json; print(json.load(open("target/demo.json"))["orderId"])')
+          python tools/consistency.py "$order_id" > target/consistency.json
+      - name: Compose evidence and cleanup
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p target
+          docker compose -f compose.yaml -f tools/compose-ci.yaml ps --all > target/compose-ps.log
+          docker compose -f compose.yaml -f tools/compose-ci.yaml logs --no-color > target/compose.log 2>&1
+          docker compose -f compose.yaml -f tools/compose-ci.yaml down --volumes --remove-orphans
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: compose-demo-evidence
+          path: |
+            target/*.log
+            target/demo.json
+            target/consistency.json

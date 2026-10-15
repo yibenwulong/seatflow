@@ -9,3 +9,6 @@ target/
 *.csv
 .superpowers/
 tmp/
+__pycache__/
+*.pyc
+.venv/

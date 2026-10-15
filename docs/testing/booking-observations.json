@@ -1,0 +1,48 @@
+{
+    "source":  "task4-booking.log",
+    "command":  "mvn -Pintegration -Dit.test=io.github.yibenwulong.seatflow.booking.*IT verify",
+    "runtime":  "real isolated MySQL 8.0; UUID schema per fixture",
+    "recordedAt":  "2026-10-15T13:01:41+08:00",
+    "experiments":  [
+                        {
+                            "scenario":  "overlapping-2-3-4",
+                            "requests":  24,
+                            "successResponses":  4,
+                            "conflicts":  20,
+                            "orders":  4,
+                            "items":  10,
+                            "heldSeats":  10,
+                            "outboxEvents":  4
+                        },
+                        {
+                            "scenario":  "32-users-one-seat",
+                            "requests":  32,
+                            "successResponses":  1,
+                            "conflicts":  31,
+                            "orders":  1,
+                            "items":  1,
+                            "heldSeats":  1,
+                            "outboxEvents":  1
+                        },
+                        {
+                            "scenario":  "same-key-different-payload",
+                            "requests":  2,
+                            "successResponses":  1,
+                            "conflicts":  1,
+                            "orders":  1,
+                            "items":  1,
+                            "heldSeats":  1,
+                            "outboxEvents":  1
+                        },
+                        {
+                            "scenario":  "32-concurrent-same-key",
+                            "requests":  32,
+                            "successResponses":  32,
+                            "conflicts":  0,
+                            "orders":  1,
+                            "items":  2,
+                            "heldSeats":  2,
+                            "outboxEvents":  1
+                        }
+                    ]
+}

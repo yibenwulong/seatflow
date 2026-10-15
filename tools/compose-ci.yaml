@@ -1,0 +1,5 @@
+# CI-only loopback access for the host-side read-only diagnostic.
+services:
+  mysql:
+    ports:
+      - "127.0.0.1:13306:3306"
