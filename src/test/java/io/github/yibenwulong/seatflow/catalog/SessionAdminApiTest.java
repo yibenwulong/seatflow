@@ -27,6 +27,16 @@ class SessionAdminApiTest {
     @Autowired ObjectMapper mapper;
     @Autowired JdbcTemplate jdbc;
     @Autowired CatalogRepository repository;
+    @Autowired SessionAdminService service;
+
+    @Test void serviceItselfRejectsCallsWithoutTrustedAdminIdentity() {
+        var request=mapper.convertValue(valid(),CreateSessionRequest.class);
+        int sessions=count("show_session"), seats=count("session_seat");
+        assertThatThrownBy(() -> service.create(request)).isInstanceOf(io.github.yibenwulong.seatflow.common.ApiException.class)
+                .satisfies(error -> assertThat(((io.github.yibenwulong.seatflow.common.ApiException)error).code()).isEqualTo("UNAUTHORIZED"));
+        assertThat(count("show_session")).isEqualTo(sessions);
+        assertThat(count("session_seat")).isEqualTo(seats);
+    }
 
     @Test void unauthenticatedAndUserCannotCreateAnyInventory() throws Exception {
         int sessions=count("show_session"), seats=count("session_seat");
@@ -70,7 +80,8 @@ class SessionAdminApiTest {
         for (var change:List.of(Map.of("startsAt","2020-01-01T00:00:00Z"),
                 Map.of("salesStartAt","2099-12-03T11:00:00Z"),Map.of("salesEndAt","2099-12-04T11:00:00Z"),
                 Map.of("salesStartAt","2099-12-03T10:00:00Z","salesEndAt","2099-12-03T10:00:00Z"),
-                Map.of("salesStartAt","2099-12-03T10:00:00.000000001Z","salesEndAt","2099-12-03T10:00:00.000000002Z"))) {
+                Map.of("salesStartAt","2099-12-03T10:00:00.000000001Z","salesEndAt","2099-12-03T10:00:00.000000002Z"),
+                Map.of("startsAt","+10000-01-01T00:00:00Z"), Map.of("salesStartAt","0001-01-01T00:00:00Z"))) {
             var body=valid(); body.putAll(change);
             assertRejectedWithoutRows(admin,body,400);
         }

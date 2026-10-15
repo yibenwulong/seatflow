@@ -30,7 +30,7 @@ class SeatMapCacheIT {
                 assertThat(original.seats()).hasSize(16);
                 assertThat(original.asOf()).isEqualTo(clock.instant());
                 assertThat(cache.get(101)).contains(original);
-                assertThat(redis.getExpire(prefix+101,java.util.concurrent.TimeUnit.MILLISECONDS)).isBetween(1L,5000L);
+                assertThat(redis.getExpire(prefix+101,java.util.concurrent.TimeUnit.MILLISECONDS)).isBetween(4000L,5000L);
                 db.jdbc().update("UPDATE hall_seat SET row_no='CHANGED',seat_no='EDIT',x=999,y=999,price_zone='EDIT',enabled=false WHERE id=1");
                 db.jdbc().update("UPDATE session_seat SET status='DISABLED' WHERE session_id=101 AND seat_id=1");
                 assertThat(service.getSeatMap(101)).isEqualTo(original); // cache hit, including original status/asOf

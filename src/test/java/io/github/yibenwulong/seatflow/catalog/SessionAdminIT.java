@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.yibenwulong.seatflow.SeatFlowApplication;
 import io.github.yibenwulong.seatflow.support.MySqlTestDatabase;
 import java.util.Map;
+import java.math.BigDecimal;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -34,9 +35,10 @@ class SessionAdminIT {
     @Autowired ObjectMapper mapper;
     @Autowired JdbcTemplate jdbc;
     @Autowired CatalogRepository repository;
+    private boolean forcedFailureCheck;
 
     @AfterEach void cleanCreatedInventory() {
-        jdbc.execute("DROP TRIGGER IF EXISTS fail_snapshot");
+        if(forcedFailureCheck) jdbc.execute("ALTER TABLE session_seat DROP CHECK forced_snapshot_failure");
         jdbc.update("DELETE FROM session_seat WHERE session_id>102");
         jdbc.update("DELETE FROM show_session WHERE id>102");
         jdbc.update("UPDATE hall_seat SET row_no='A',seat_no='1',position=1,block_id='LEFT',price_zone='PREMIUM',x=1,y=1,enabled=true WHERE id=1");
@@ -59,8 +61,11 @@ class SessionAdminIT {
 
     @Test void rollsBackSessionAndAlreadyInsertedSeatsWhenLaterSnapshotInsertFails() throws Exception {
         int sessions=count("show_session"), seats=count("session_seat");
-        jdbc.execute("CREATE TRIGGER fail_snapshot BEFORE INSERT ON session_seat FOR EACH ROW BEGIN IF NEW.session_id>102 AND NEW.seat_id=2 THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='forced snapshot failure'; END IF; END");
-        assertThatThrownBy(() -> create(SessionAdminApiTest.valid())).hasStackTraceContaining("forced snapshot failure");
+        jdbc.execute("ALTER TABLE session_seat ADD CONSTRAINT forced_snapshot_failure CHECK (session_id<=102 OR seat_id<>2)");
+        forcedFailureCheck=true;
+        var result=create(SessionAdminApiTest.valid()).andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.code").value("INTERNAL_ERROR")).andReturn();
+        assertThat(result.getResolvedException()).hasStackTraceContaining("forced_snapshot_failure");
         assertThat(count("show_session")).isEqualTo(sessions);
         assertThat(count("session_seat")).isEqualTo(seats);
         assertThat(repository.listSessionSeats(101)).hasSize(16);
@@ -71,6 +76,16 @@ class SessionAdminIT {
         var body=SessionAdminApiTest.valid(); body.put("startsAt","2020-01-01T00:00:00Z");
         create(body).andExpect(status().isBadRequest());
         body=SessionAdminApiTest.valid(); body.put("prices",Map.of("PREMIUM",10));
+        create(body).andExpect(status().isBadRequest());
+        body=SessionAdminApiTest.valid(); body.put("prices",Map.of("PREMIUM",new BigDecimal("1.001"),"STANDARD",BigDecimal.TEN));
+        create(body).andExpect(status().isBadRequest());
+        body=SessionAdminApiTest.valid(); body.put("prices",Map.of("PREMIUM",new BigDecimal("10000000000.00"),"STANDARD",BigDecimal.TEN));
+        create(body).andExpect(status().isBadRequest());
+        body=SessionAdminApiTest.valid(); body.put("salesStartAt","2099-12-03T10:00:00.000000001Z"); body.put("salesEndAt","2099-12-03T10:00:00.000000002Z");
+        create(body).andExpect(status().isBadRequest());
+        body=SessionAdminApiTest.valid(); body.put("startsAt","+10000-01-01T00:00:00Z");
+        create(body).andExpect(status().isBadRequest());
+        body=SessionAdminApiTest.valid(); body.put("salesStartAt","0001-01-01T00:00:00Z");
         create(body).andExpect(status().isBadRequest());
         assertThat(count("show_session")).isEqualTo(sessions);
         assertThat(count("session_seat")).isEqualTo(seats);
