@@ -10,6 +10,12 @@ spring:
     clean-disabled: true
   jackson:
     time-zone: UTC
+  data:
+    redis:
+      host: ${SEATFLOW_REDIS_HOST:localhost}
+      port: ${SEATFLOW_REDIS_PORT:6379}
+      connect-timeout: 200ms
+      timeout: 200ms
 server:
   error:
     include-message: never

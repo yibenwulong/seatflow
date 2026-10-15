@@ -33,6 +33,9 @@ class CatalogApiTest {
         assertThat(first.sessionId()).isEqualTo(101);
         assertThat(first.seatId()).isEqualTo(1);
         assertThat(first.rowNo()).isEqualTo("A");
+        assertThat(first.seatNo()).isEqualTo("1");
+        assertThat(first.x()).isEqualByComparingTo("1.00");
+        assertThat(first.y()).isEqualByComparingTo("1.00");
         assertThat(first.position()).isEqualTo(1);
         assertThat(first.blockId()).isEqualTo("LEFT");
         assertThat(first.priceZone()).isEqualTo("PREMIUM");
@@ -41,6 +44,16 @@ class CatalogApiTest {
         assertThat(first.holdExpiresAt()).isNull();
         assertThat(seats).filteredOn(s -> s.status().equals("DISABLED")).extracting(SessionSeat::seatId).containsExactly(10L);
         assertThat(clock.getZone()).isEqualTo(ZoneOffset.UTC);
+    }
+
+    @Test @Transactional
+    void mapsHeldOwnerAndExpiryFromSessionSnapshot() {
+        jdbc.update("INSERT INTO ticket_order(id,user_id,session_id,request_id,request_digest,selection_mode,status,total_amount,expire_at,created_at,updated_at) VALUES(500,1,101,'held-snapshot','abc','EXPLICIT','UNPAID',280,'2099-01-01 00:15:00','2099-01-01 00:00:00','2099-01-01 00:00:00')");
+        jdbc.update("UPDATE session_seat SET status='HELD',owner_order_id=500,hold_expires_at='2099-01-01 00:15:00' WHERE session_id=101 AND seat_id=1");
+        var held=repository.listSessionSeats(101).get(0);
+        assertThat(held.status()).isEqualTo("HELD");
+        assertThat(held.ownerOrderId()).isEqualTo(500);
+        assertThat(held.holdExpiresAt()).isEqualTo(java.time.Instant.parse("2099-01-01T00:15:00Z"));
     }
 
     @Test @Transactional
