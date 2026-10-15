@@ -28,7 +28,8 @@ The checks compare item count/price total/session, every active order's expected
 HELD/SOLD ownership, HELD expiry, extra owned seats and terminal ownership.
 For CANCELLED/REFUNDED, a different current owner is valid. Money checks require
 an applied collection for PAID/REFUNDING, a NORMAL task for REFUNDING, completed
-normal refund for REFUNDED, matching receipt/refund amounts, and a durable
+normal refund for REFUNDED, both NORMAL refund and linked collection equal to the
+full order amount, coherent order/receipt/refund progress, and a durable
 compensation for COMPENSATING collections. PENDING/PROCESSING/GATEWAY_SUCCEEDED
 refunds are visible progress; FAILED IDs are explicitly listed and need inspection.
 
@@ -45,6 +46,7 @@ their own persisted diagnostics and bounded recovery tests.
 
 `python -m tools.mysql_smoke` is the explicit real-driver test. It requires
 `SEATFLOW_IT_MYSQL_*`, creates only its UUID schema, applies the known V1 schema
-and local seeds, induces four cases, then drops that schema in finally. It runs
+and local seeds, induces normal/partial/stale/pending and terminal-refund cases,
+then drops that schema in finally. It runs
 without Spring workers. It is intentionally outside fast unittest discovery and
 is not silently skipped when prerequisites are absent.

@@ -63,6 +63,28 @@ class ConsistencyTests(unittest.TestCase):
         data["payments"][0]["status"] = "REFUNDED"
         self.assertIn("MISSING_COMPLETED_NORMAL_REFUND", inspect(data)["violations"])
 
+    def test_refunded_order_rejects_smaller_matching_collection_and_normal_refund(self):
+        data = self.refunded()
+        data["payments"][0]["amount"] = Decimal("1.00")
+        data["refunds"][0]["amount"] = Decimal("1.00")
+        self.assertIn("NORMAL_REFUND_ORDER_AMOUNT", inspect(data)["violations"])
+
+    def test_refunded_order_requires_refunded_linked_collection_state(self):
+        data = self.refunded()
+        data["payments"][0]["status"] = "COMPENSATING"
+        self.assertIn("REFUND_PAYMENT_STATE", inspect(data)["violations"])
+
+    def test_completed_normal_refund_requires_refunded_order_state(self):
+        data = self.refunded()
+        data["order"]["status"] = "REFUNDING"
+        data["payments"][0]["status"] = "APPLIED"
+        for seat in data["seats"]:
+            seat.update(status="SOLD", owner_order_id=7)
+        self.assertIn("NORMAL_REFUND_ORDER_STATE", inspect(data)["violations"])
+
+    def test_refunded_order_accepts_full_linked_collection_and_completed_normal(self):
+        self.assertTrue(inspect(self.refunded())["consistent"])
+
     def test_price_sum_detects_partial_items(self):
         data = fixture()
         data["items"].pop()
@@ -98,4 +120,14 @@ class ConsistencyTests(unittest.TestCase):
         for seat in data["seats"]:
             seat.update(status="SOLD", hold_expires_at=None)
         data["payments"] = [{"id": 3, "amount": Decimal("560.00"), "status": "APPLIED"}]
+        return data
+
+    @classmethod
+    def refunded(cls):
+        data = cls.paid("REFUNDED")
+        for seat in data["seats"]:
+            seat.update(status="AVAILABLE", owner_order_id=None)
+        data["payments"][0]["status"] = "REFUNDED"
+        data["refunds"] = [{"id": 9, "payment_record_id": 3, "type": "NORMAL",
+                            "amount": Decimal("560.00"), "status": "COMPLETED"}]
         return data

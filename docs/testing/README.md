@@ -43,9 +43,13 @@ only its CI project and volumes.
 - Checker TDD: initial **12 fixed tests**, **9 expected assertion failures**;
   implemented checker then **12 passed**. Added unknown-state/refund-overallocation
   regressions failed twice, then all **15 fixed cases** passed. Three CLI/driver
-  checks bring the tool suite to **18 passed**; these are not real DB tests.
+  checks brought the initial tool suite to **18 passed**. Review added four
+  terminal-refund cases: **22 tests, 3 expected failures** before the fix, then
+  **22 passed**. These are not real DB tests.
 - Actual checker smoke: native **MySQL 8.0.44**, new UUID schema migrated and seeded,
   normal case consistent; partial/stale owner detected; pending refund visible;
+  a 560.00 terminal order with only 1.00 collected/refunded rejected with CLIexit1,
+  corrected full collection/refund accepted with CLIexit0;
   a separate attempted UPDATE in READ ONLY transaction rejected with MySQL **1792**.
   The SQL-induced cases are not HTTP payment/booking validation.
 - Previous reviewed tasks ran real MySQL booking/auth/admin and Redis cache tests.

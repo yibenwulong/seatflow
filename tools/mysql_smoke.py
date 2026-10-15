@@ -79,6 +79,21 @@ def main():
         assert result["consistent"] and result["funds"]["pendingRefundIds"] == [9]
         results["pendingRefund"] = result["funds"]["pendingRefundIds"]
         with connection.cursor() as cursor:
+            cursor.execute("UPDATE ticket_order SET status='REFUNDED' WHERE id=7")
+            cursor.execute("UPDATE session_seat SET status='AVAILABLE',owner_order_id=NULL,hold_expires_at=NULL WHERE session_id=101 AND seat_id IN (1,2)")
+            cursor.execute("UPDATE payment_record SET status='REFUNDED',amount=1 WHERE id=3")
+            cursor.execute("UPDATE refund_record SET status='COMPLETED',amount=1,gateway_succeeded_at=NOW(),local_completed_at=NOW() WHERE id=9")
+        result = inspect(read_snapshot(connection, 7))
+        assert "NORMAL_REFUND_ORDER_AMOUNT" in result["violations"]
+        results["underfundedTerminal"] = result["violations"]
+        results["underfundedTerminalCliExit"] = cli(1)
+        with connection.cursor() as cursor:
+            cursor.execute("UPDATE payment_record SET amount=560 WHERE id=3")
+            cursor.execute("UPDATE refund_record SET amount=560 WHERE id=9")
+        result = inspect(read_snapshot(connection, 7))
+        assert result["consistent"], result["violations"]
+        results["fullRefundTerminalCliExit"] = cli(0)
+        with connection.cursor() as cursor:
             cursor.execute("START TRANSACTION READ ONLY")
             try:
                 cursor.execute("UPDATE ticket_order SET total_amount=0 WHERE id=7")

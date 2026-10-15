@@ -67,6 +67,15 @@ def inspect(snapshot):
         payment = receipts.get(refund["payment_record_id"])
         if not payment or refund["amount"] != payment["amount"]:
             errors.add("REFUND_PAYMENT_MISMATCH")
+        if refund["status"] == "COMPLETED" and (not payment or payment["status"] != "REFUNDED"):
+            errors.add("REFUND_PAYMENT_STATE")
+        if refund["type"] == "NORMAL":
+            if refund["amount"] != order["total_amount"] or (
+                    not payment or payment["amount"] != order["total_amount"]):
+                errors.add("NORMAL_REFUND_ORDER_AMOUNT")
+            expected = "REFUNDED" if refund["status"] == "COMPLETED" else "REFUNDING"
+            if status != expected:
+                errors.add("NORMAL_REFUND_ORDER_STATE")
     return {"consistent": not errors, "violations": sorted(errors),
             "funds": {"collected": sum((p["amount"] for p in payments), Decimal(0)),
                       "completedRefunds": sum((r["amount"] for r in refunds if r["status"] == "COMPLETED"), Decimal(0)),

@@ -129,10 +129,25 @@ jobs:
         if: always()
         shell: bash
         run: |
+          set -euo pipefail
+          cleanup() {
+            status=$?
+            trap - EXIT
+            set +e
+            docker compose -f compose.yaml -f tools/compose-ci.yaml down --volumes --remove-orphans
+            down_status=$?
+            if [ "$status" -eq 0 ]; then status=$down_status; fi
+            exit "$status"
+          }
+          trap cleanup EXIT
           mkdir -p target
-          docker compose -f compose.yaml -f tools/compose-ci.yaml ps --all > target/compose-ps.log
-          docker compose -f compose.yaml -f tools/compose-ci.yaml logs --no-color > target/compose.log 2>&1
-          docker compose -f compose.yaml -f tools/compose-ci.yaml down --volumes --remove-orphans
+          evidence_status=0
+          docker compose -f compose.yaml -f tools/compose-ci.yaml ps --all > target/compose-ps.log || evidence_status=$?
+          docker compose -f compose.yaml -f tools/compose-ci.yaml logs --no-color > target/compose.log 2>&1 || {
+            logs_status=$?
+            if [ "$evidence_status" -eq 0 ]; then evidence_status=$logs_status; fi
+          }
+          exit "$evidence_status"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
