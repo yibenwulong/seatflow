@@ -14,3 +14,7 @@ server:
   error:
     include-message: never
     include-stacktrace: never
+seatflow:
+  auth:
+    signing-key: ${SEATFLOW_AUTH_SIGNING_KEY:}
+    token-lifetime: PT1H
