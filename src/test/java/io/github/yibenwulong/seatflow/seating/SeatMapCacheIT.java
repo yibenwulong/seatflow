@@ -47,9 +47,9 @@ class SeatMapCacheIT {
                 cache.evict(101);
                 assertThat(cache.get(101)).isEmpty();
                 // Corrupt cache payloads are also misses, never HTTP 500 failures.
-                redis.opsForValue().set(prefix+101,"{broken");
+                redis.opsForValue().set(prefix+101,"{broken",Duration.ofSeconds(5));
                 assertThat(service.getSeatMap(101)).isEqualTo(refreshed);
-                redis.opsForValue().set(prefix+101,"null");
+                redis.opsForValue().set(prefix+101,"null",Duration.ofSeconds(5));
                 assertThat(service.getSeatMap(101)).isEqualTo(refreshed);
                 cache.evict(101);
             } finally { factory.destroy(); }
