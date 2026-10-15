@@ -81,6 +81,9 @@ class SessionAdminIT {
         create(body).andExpect(status().isBadRequest());
         body=SessionAdminApiTest.valid(); body.put("prices",Map.of("PREMIUM",new BigDecimal("10000000000.00"),"STANDARD",BigDecimal.TEN));
         create(body).andExpect(status().isBadRequest());
+        body=SessionAdminApiTest.valid(); body.put("prices",Map.of("PREMIUM",new BigDecimal("2500000000.00"),"STANDARD",BigDecimal.TEN));
+        create(body).andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+                .andExpect(jsonPath("$.message").value("Prices must be positive amounts with at most 2 decimal places and no greater than 2499999999.99"));
         body=SessionAdminApiTest.valid(); body.put("salesStartAt","2099-12-03T10:00:00.000000001Z"); body.put("salesEndAt","2099-12-03T10:00:00.000000002Z");
         create(body).andExpect(status().isBadRequest());
         body=SessionAdminApiTest.valid(); body.put("startsAt","+10000-01-01T00:00:00Z");

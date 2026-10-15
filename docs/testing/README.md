@@ -37,7 +37,7 @@ Reports and failure logs are uploaded with `if: always()`. Pipeline failure
 cannot be hidden by `tee`: test steps enable `pipefail`. Compose cleanup removes
 only its CI project and volumes.
 
-## Verification ledger
+## Historical local verification ledger
 
 - Reviewed booking base: Java fast suite **49 tests**, zero failures/errors/skips.
 - Checker TDD: initial **12 fixed tests**, **9 expected assertion failures**;
@@ -90,7 +90,40 @@ signatures and offline SDK transport; they do not verify a live sandbox.
 
 Actual broker entry was attempted locally before the final worker stage:
 OutboxDeliveryIT reported three explicit missing-SPRING_RABBITMQ_HOST errors and
-zero skips. No broker operation ran; real confirm/return, TTL and delivery tests
-remain for hosted CI. Container tags are metadata-checked, not locally pulled.
-Hosted CI verification must update this ledger with its observed result.
+zero skips. No broker operation ran in that historical local attempt. The
+subsequent hosted run below supplies the real broker and container evidence.
 See [engineering notes](engineering.md) and [checker limitations](consistency.md).
+
+## Initial hosted evidence and final review delta
+
+Initial hosted [quality run 38692223197](https://github.com/yibenwulong/seatflow/actions/runs/38692223197)
+at exact historical SHA `db1d72683ab51f23d626792ebda805c143cfcb5e` had all three
+jobs SUCCESS: fast, integration and Compose-demo. It ran **59 fast Java tests**,
+**65 IT** (including **3 real RabbitMQ OutboxDeliveryIT cases**) and **22 Python
+tests**, all without failures/errors/skips. The integration job repeats fast
+tests; do not add those overlapping counts. Actual service versions were MySQL
+**8.4.11**, Redis **7.4.11**, RabbitMQ **4.3.6**. Clean Compose built/started the
+application and actual HTTP demo reached PAID -> COMPLETED refund -> REFUNDED.
+The CLI snapshot had no violations, **560.00** collected and refunded, two
+AVAILABLE/unowned seats, and no pending/failed refunds. The downloaded job logs
+and demo/checker JSON were inspected during delivery review. Earlier native-only
+observations above retain their historical scope.
+
+The final review delta was verified locally with a fresh **61-fast-test** run,
+**25 Python tests**, and **7 affected real MySQL IT**: two stale-success races,
+two price/aggregate boundary cases and three SessionAdminIT cases. The scoped
+integration command also reran the same 61 fast cases; it is not another distinct
+inventory. MySQL here was native 8.0.44; no RabbitMQ/Docker ran locally. These
+results document the affected subset. Full hosted results are reported per
+commit in the [quality workflow results](https://github.com/yibenwulong/seatflow/actions/workflows/ci.yml);
+a result at an earlier SHA is not evidence for another commit.
+
+Known compatibility advisory: Spring Boot 3.5.13 manages Flyway **11.7.2**, whose
+[MySQL version check](https://github.com/flyway/flyway/blob/flyway-11.7.2/flyway-database/flyway-mysql/src/main/java/org/flywaydb/database/mysql/MySQLDatabase.java#L243)
+uses **8.1** as its tested-version advisory threshold. The MySQL 8.4 warning stays
+visible. Current migrations, all initial 65 IT and clean Compose passed on
+8.4.11; this does not guarantee every future migration. Any future Flyway upgrade
+must check the effective dependency version and pass fresh full CI. No managed
+version override or SQL migration change was made to hide the advisory. Redis's
+host memory-overcommit advisory in CI remains an infrastructure observation;
+no host setting was changed and production tuning was not validated.

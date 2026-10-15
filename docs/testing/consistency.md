@@ -2,7 +2,7 @@
 
 `python tools/consistency.py ORDER_ID` inspects **only the configured current
 deployment**. It does not infer historical ownership or query another database.
-Set all six fields explicitly; no fallback production credentials exist:
+Set all five fields explicitly; no fallback production credentials exist:
 
 ```text
 SEATFLOW_CHECK_MYSQL_HOST
@@ -32,6 +32,9 @@ normal refund for REFUNDED, both NORMAL refund and linked collection equal to th
 full order amount, coherent order/receipt/refund progress, and a durable
 compensation for COMPENSATING collections. PENDING/PROCESSING/GATEWAY_SUCCEEDED
 refunds are visible progress; FAILED IDs are explicitly listed and need inspection.
+Only PENDING, PROCESSING, GATEWAY_SUCCEEDED, COMPLETED and FAILED are supported.
+Any other refund status emits UNKNOWN_REFUND_STATE and exits 1; it cannot be
+certified as ordinary recoverable progress. FAILED remains a valid retained state.
 
 JSON contains `consistent`, stable `violations`, `funds` and raw `snapshot`.
 Decimal amounts are strings to preserve exactness; MySQL DATETIME is emitted as

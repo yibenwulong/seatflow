@@ -64,6 +64,8 @@ def inspect(snapshot):
         errors.add("MISSING_COMPLETED_NORMAL_REFUND")
     receipts = {p["id"]: p for p in payments}
     for refund in refunds:
+        if refund["status"] not in {"PENDING", "PROCESSING", "GATEWAY_SUCCEEDED", "COMPLETED", "FAILED"}:
+            errors.add("UNKNOWN_REFUND_STATE")
         payment = receipts.get(refund["payment_record_id"])
         if not payment or refund["amount"] != payment["amount"]:
             errors.add("REFUND_PAYMENT_MISMATCH")

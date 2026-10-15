@@ -4,7 +4,11 @@
 `seatIds` (EXPLICIT, 1–4 distinct physical seat IDs) or `count` (ADJACENT, 2–4)
 with optional `priceZone`. EXPLICIT also rejects `count` and `priceZone`.
 An absent/empty seat list is accepted for ADJACENT. Prices come from the
-session snapshot. A physical `seatId` differs from `session_seat.id`.
+session snapshot. New admin snapshots cap unit prices at 2499999999.99 so four
+maximum-price seats total 9999999999.96 and fit DECIMAL(12,2). Legacy snapshots
+remain readable; selected totals above 9999999999.99 return 400 INVALID_REQUEST
+("Order total exceeds 9999999999.99") with no committed booking writes.
+A physical `seatId` differs from `session_seat.id`.
 
 `GET /api/v1/orders`, `GET /api/v1/orders/{id}` and
 `POST /api/v1/orders/{id}/cancel` use the verified bearer identity.

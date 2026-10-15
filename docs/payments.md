@@ -96,8 +96,8 @@ no writes.
 
 `RefundService.process(long refundId)` is the worker entry point. It suspends
 any caller transaction; local changes use separate short transactions that
-lock order, then refund record. The worker selects IDs with statuses other than
-COMPLETED/FAILED, null/due next_attempt_at, and null/expired lease_until, in ID order.
+lock order, then refund record. The worker selects only PENDING, PROCESSING and
+GATEWAY_SUCCEEDED IDs, null/due next_attempt_at, and null/expired lease_until, in ID order.
 Do not filter attempts below 10: an expired PROCESSING lease on attempt 10
 needs to become FAILED.
 
@@ -108,7 +108,8 @@ States:
 - GATEWAY_SUCCEEDED: external success checkpoint persisted, local completion
   still pending. Recovery skips the gateway call.
 - COMPLETED: local completion committed; next_attempt_at/lease cleared.
-- FAILED: ten attempts exhausted; retained for operator investigation.
+- FAILED: ten attempts exhausted; retained for operator investigation; new
+  automated process calls stop without another gateway attempt.
 
 Failures record a safe phase/category, clear the owned lease, and schedule
 1, 2, 4, 8, 16, 32, then 60-second capped retry intervals. process rethrows
@@ -117,6 +118,17 @@ and continue. Ineligible, terminal, missing or actively leased IDs are no-ops.
 Gateway success before checkpoint failure is recovered using the same
 refund_no; it must not create a second external refund. A checkpoint is saved
 before the final local completion transaction.
+
+Verified success for the same stable refund_no is monotonic funds truth: an
+already in-flight response may reconcile after its lease expires, while a newer
+claim is active, or after expired attempt ten has become FAILED. Under the
+order/refund locks it records success and completes locally once; another success
+or terminal replay makes no second event or money effect. FAILED stops new calls,
+but does not discard that previously started verified response. Stale failures
+are fenced by attempt and cannot clear a newer claim. This refund policy differs
+from Outbox's strict live-lease ACK policy. Latch-controlled real MySQL tests cover
+old success versus a live newer claim and old success versus tenth-attempt FAILED;
+the compensation case also preserves the new seat owner.
 
 NORMAL refund requests are whole-order and must precede show start. Completion
 releases only that order's SOLD seats in increasing seat ID order and sets
@@ -130,7 +142,7 @@ PAYMENT_COMPENSATION_REQUESTED, PAYMENT_COMPENSATION_COMPLETED. All have order
 ID aggregate and the same payload as booking: string orderId/sessionId and ISO
 expireAt. Joined expiration also emits ORDER_CANCELLED.
 
-The Task6 worker owns polling/configuration; this package owns claims,
+The refund worker owns polling/configuration; this package owns claims,
 retries and funds transitions. The flag is
 `seatflow.payment.refund-worker-enabled` (default true). No payment logic depends on MQ
 delivery for refund retry eligibility.

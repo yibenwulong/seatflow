@@ -46,6 +46,23 @@ class ConsistencyTests(unittest.TestCase):
         self.assertTrue(result["consistent"])
         self.assertEqual([9], result["funds"]["pendingRefundIds"])
 
+    def test_unknown_refund_state_is_not_certified(self):
+        data = self.paid("REFUNDING")
+        data["refunds"] = [{"id": 9, "payment_record_id": 3, "type": "NORMAL",
+                            "amount": Decimal("560.00"), "status": "CORRUPT"}]
+        result = inspect(data)
+        self.assertFalse(result["consistent"])
+        self.assertIn("UNKNOWN_REFUND_STATE", result["violations"])
+
+    def test_failed_refund_is_valid_retained_visible_progress(self):
+        data = self.paid("REFUNDING")
+        data["refunds"] = [{"id": 9, "payment_record_id": 3, "type": "NORMAL",
+                            "amount": Decimal("560.00"), "status": "FAILED"}]
+        result = inspect(data)
+        self.assertTrue(result["consistent"])
+        self.assertEqual([9], result["funds"]["pendingRefundIds"])
+        self.assertEqual([9], result["funds"]["failedRefundIds"])
+
     def test_paid_order_requires_collection(self):
         data = self.paid()
         data["payments"] = []

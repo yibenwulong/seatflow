@@ -95,6 +95,9 @@ public class OrderService {
             selected.add(seat);
         }
         var amount=selected.stream().map(SessionSeat::price).reduce(BigDecimal.ZERO,BigDecimal::add);
+        // Older immutable snapshots may predate the per-seat ceiling. Reject the total
+        // inside this transaction before binding DECIMAL(12,2), rolling back the header too.
+        if(amount.compareTo(new BigDecimal("9999999999.99"))>0) throw invalid("Order total exceeds 9999999999.99");
         orders.setAmount(orderId,amount);
         // Single-row conditional updates in physical seat ID order give deterministic lock order.
         // Any miss throws out of the transaction, rolling back all preceding holds and the header.

@@ -27,10 +27,12 @@ Alipay's five final adapter tests verify RSA validation and unsuccessful-respons
 rejection using offline SDK transport. The preserved `alipay-red.log` contains
 missing-class compilation failure only; it is not evidence of a historical
 semantic SDK-isSuccess assertion failure. No live sandbox request was executed.
-Review also identified an explicit remaining coverage topic: authoritative
-same-refund-number success from an old in-flight worker versus a newer claim or
-exhaustion does not yet have its own deterministic race regression. Stale failure
-is covered; do not describe that as proof of every stale-success interleaving.
+Final review added two latch-controlled real MySQL regressions for authoritative
+same-refund-number success from an old in-flight worker versus a newer live claim
+and expired tenth-attempt FAILED. Both assert one external money fact, one local
+completion/event and terminal replay; late-payment compensation also preserves
+the new owner's HELD seat. This documents the accepted monotonic funds-truth
+policy; it does not claim to exhaust every possible interleaving.
 
 Delivery review found a separate diagnostic defect: a REFUNDED 560.00 order with
 only 1.00 collected and NORMAL-refunded was wrongly certified consistent. Three
@@ -65,3 +67,17 @@ payload, each collection needing application or compensation, and refund
 gateway/local progress. No measured coverage percentage is available. Candidate
 improvements should follow uncovered decisions and mutation failures, with
 coverage reports added only when actually generated.
+
+Final review also reproduced unsupported refund status CORRUPT being certified
+consistent. A fixed-case assertion failed before the whitelist fix; the CLI now
+returns 1 with UNKNOWN_REFUND_STATE and retains valid FAILED visibility. The
+price boundary review reproduced a legacy two-seat DECIMAL aggregate overflow;
+admin input now caps each new price at 2499999999.99 and a transactional total
+guard turns incompatible legacy selections into a clear 400 without partial
+writes. Real MySQL tests store four maximum-price seats totaling 9999999999.96
+and assert complete rollback for the legacy overflow.
+
+Negative-startup auth/Alipay tests assert their precise wrapped validation cause.
+Their scoped capture consumes only the expected context WARN and forwards other
+diagnostics, restoring logger configuration in finally. Dependency advisories,
+including Flyway's MySQL version warning, are not globally muted.

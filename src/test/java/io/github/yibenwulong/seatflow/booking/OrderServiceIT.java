@@ -35,6 +35,33 @@ class OrderServiceIT {
             assertThat(f.count("order_item")).isZero(); assertThat(f.count("outbox_event")).isZero();
         }
     }
+    @Test void fourMaximumUnitPricesFitAggregateOnRealMysql() {
+        try(var f=new BookingFixture()) {
+            f.jdbc.update("UPDATE session_seat SET price=2499999999.99 WHERE session_id=101");
+            var order=f.service.create(1,explicit("max-price",1,2,3,4));
+            assertThat(order.totalAmount()).isEqualByComparingTo("9999999999.96");
+            assertThat(f.jdbc.queryForObject("SELECT total_amount FROM ticket_order WHERE id=?",java.math.BigDecimal.class,order.id()))
+                    .isEqualByComparingTo("9999999999.96");
+            assertThat(order.items()).hasSize(4).allSatisfy(item->assertThat(item.unitPrice()).isEqualByComparingTo("2499999999.99"));
+            assertThat(f.held()).isEqualTo(4);
+            assertThat(f.count("outbox_event")).isEqualTo(1);
+        }
+    }
+    @Test void legacyHighSnapshotAggregateOverflowIsClear4xxAndRollsBackAllWrites() {
+        try(var f=new BookingFixture()) {
+            f.jdbc.update("UPDATE session_seat SET price=9999999999.99 WHERE session_id=101");
+            assertThatThrownBy(()->f.service.create(1,explicit("legacy-overflow",1,2)))
+                    .isInstanceOfSatisfying(ApiException.class,error->{
+                        assertThat(error.status().value()).isEqualTo(400);
+                        assertThat(error.code()).isEqualTo("INVALID_REQUEST");
+                        assertThat(error.getMessage()).isEqualTo("Order total exceeds 9999999999.99");
+                    });
+            assertThat(f.count("ticket_order")).isZero();
+            assertThat(f.count("order_item")).isZero();
+            assertThat(f.count("outbox_event")).isZero();
+            assertThat(f.held()).isZero();
+        }
+    }
     @Test void replayReturnsOriginalOrderAndPayloadConflictIs409() {
         try(var f=new BookingFixture()) {
             var order=f.service.create(1,explicit("replay",2,1));

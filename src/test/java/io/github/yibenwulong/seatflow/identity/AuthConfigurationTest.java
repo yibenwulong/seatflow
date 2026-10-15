@@ -6,6 +6,7 @@ import java.util.Base64;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import static org.assertj.core.api.Assertions.*;
+import static io.github.yibenwulong.seatflow.support.ExpectedStartupWarning.run;
 
 class AuthConfigurationTest {
     private ApplicationContextRunner context(String... profiles) {
@@ -19,10 +20,11 @@ class AuthConfigurationTest {
 
     @Test void missingKeyRefusesDefaultProductionAndMixedProfiles() {
         for (String[] profiles : new String[][]{{}, {"production"}, {"local", "production"}}) {
-            context(profiles).run(ctx -> {
+            String cause="SEATFLOW_AUTH_SIGNING_KEY is required outside local/test profiles";
+            run("tokenService",cause,()->context(profiles).run(ctx -> {
                 assertThat(ctx).hasFailed();
-                assertThat(ctx.getStartupFailure()).hasRootCauseMessage("SEATFLOW_AUTH_SIGNING_KEY is required outside local/test profiles");
-            });
+                assertThat(ctx.getStartupFailure()).hasRootCauseInstanceOf(IllegalStateException.class).hasRootCauseMessage(cause);
+            }));
         }
     }
 
@@ -53,17 +55,26 @@ class AuthConfigurationTest {
     }
 
     @Test void malformedOrShortConfiguredKeysRefuseStartupEvenInLocal() {
-        for (String key : new String[]{"not-base64!", Base64.getEncoder().encodeToString(new byte[31])}) {
-            context("local").withPropertyValues("seatflow.auth.signing-key=" + key).run(ctx -> assertThat(ctx).hasFailed());
-        }
+        String malformed="SEATFLOW_AUTH_SIGNING_KEY must be Base64";
+        run("tokenService",malformed,()->context("local").withPropertyValues("seatflow.auth.signing-key=not-base64!").run(ctx->{
+            assertThat(ctx).hasFailed();
+            assertThat(ctx.getStartupFailure()).hasStackTraceContaining(malformed)
+                    .hasRootCauseInstanceOf(IllegalArgumentException.class).hasRootCauseMessage("Illegal base64 character 2d");
+        }));
+        String shortKey="Token signing key must contain at least 32 bytes";
+        run("tokenService",shortKey,()->context("local").withPropertyValues("seatflow.auth.signing-key="+Base64.getEncoder().encodeToString(new byte[31])).run(ctx->{
+            assertThat(ctx).hasFailed();
+            assertThat(ctx.getStartupFailure()).hasRootCauseInstanceOf(IllegalArgumentException.class).hasRootCauseMessage(shortKey);
+        }));
     }
 
-    @Test void zeroOrNegativeLifetimeRefusesStartup() {
-        for (String lifetime : new String[]{"PT0S", "PT-1S"}) {
-            context("test").withPropertyValues("seatflow.auth.token-lifetime=" + lifetime).run(ctx -> {
+    @Test void nonPositiveOrFractionalLifetimeRefusesStartup() {
+        for (String lifetime : new String[]{"PT0S", "PT-1S", "PT0.5S", "PT1.5S"}) {
+            String cause="Token lifetime must be positive whole seconds";
+            run("tokenService",cause,()->context("test").withPropertyValues("seatflow.auth.token-lifetime=" + lifetime).run(ctx -> {
                 assertThat(ctx).hasFailed();
-                assertThat(ctx.getStartupFailure()).hasRootCauseMessage("Token lifetime must be positive whole seconds");
-            });
+                assertThat(ctx.getStartupFailure()).hasRootCauseInstanceOf(IllegalArgumentException.class).hasRootCauseMessage(cause);
+            }));
         }
     }
 

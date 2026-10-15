@@ -86,6 +86,20 @@ class AuthorizationApiTest {
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.requestId").isNotEmpty());
     }
 
+    @Test void unsupportedHttpMethodUsesStableMvcErrorContract() throws Exception {
+        mvc.perform(get("/api/v1/auth/login").header("Authorization", "Bearer "+auth.login("demo", "demo-seatflow").token())
+                .header("X-Request-Id","method-check"))
+                .andExpect(status().isMethodNotAllowed()).andExpect(jsonPath("$.code").value("METHOD_NOT_ALLOWED"))
+                .andExpect(jsonPath("$.message").value("HTTP method not allowed")).andExpect(jsonPath("$.requestId").value("method-check"));
+    }
+
+    @Test void unsupportedMediaTypeUsesStableMvcErrorContract() throws Exception {
+        mvc.perform(post("/api/v1/auth/login").contentType("text/plain").content("unsupported")
+                .header("X-Request-Id","media-check"))
+                .andExpect(status().isUnsupportedMediaType()).andExpect(jsonPath("$.code").value("UNSUPPORTED_MEDIA_TYPE"))
+                .andExpect(jsonPath("$.message").value("Unsupported media type")).andExpect(jsonPath("$.requestId").value("media-check"));
+    }
+
     @Test void errorsDoNotExposeImplementationDetailsAndContextClearsAfterFailure() throws Exception {
         String token = auth.login("demo", "demo-seatflow").token();
         mvc.perform(get("/api/v1/identity-probe/failure").header("Authorization", "Bearer " + token).header("X-Request-Id", "failure-check"))

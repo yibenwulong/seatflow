@@ -26,8 +26,12 @@ class AlipaySandboxGatewayTest {
     @Test void disabledSandboxNeedsNoSecretsAndEnabledSandboxRequiresAllConfiguration() {
         var runner=new org.springframework.boot.test.context.runner.ApplicationContextRunner().withUserConfiguration(PaymentGatewayConfiguration.class);
         runner.run(context -> assertThat(context).doesNotHaveBean(AlipaySandboxGateway.class));
-        runner.withPropertyValues("seatflow.payment.alipay.enabled=true")
-                .run(context -> assertThat(context).hasFailed());
+        String cause="Missing seatflow.payment.alipay.app-id";
+        io.github.yibenwulong.seatflow.support.ExpectedStartupWarning.run("alipaySandboxGateway",cause,()->
+                runner.withPropertyValues("seatflow.payment.alipay.enabled=true").run(context -> {
+                    assertThat(context).hasFailed();
+                    assertThat(context.getStartupFailure()).hasRootCauseInstanceOf(IllegalStateException.class).hasRootCauseMessage(cause);
+                }));
     }
     @Test void createUsesServerAmountStableMerchantAndVerifiedSuccessResponse() throws Exception {
         var client=mock(AlipayClient.class);

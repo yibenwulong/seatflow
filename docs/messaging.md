@@ -87,8 +87,13 @@ Real RabbitMQ tests additionally require the four `SPRING_RABBITMQ_*` variables:
 
 Missing broker configuration fails explicitly. These tests use real wall-clock TTL,
 confirm/return and real message delivery; mutable Clock tests only prove business
-expiry. This host has no RabbitMQ, Erlang or Docker; actual broker execution is
-pending CI and must not be reported as locally passed.
+expiry. This Windows host has no RabbitMQ, Erlang or Docker. Initial hosted
+[CI 38692223197](https://github.com/yibenwulong/seatflow/actions/runs/38692223197)
+at `db1d72683ab51f23d626792ebda805c143cfcb5e` passed all 3 OutboxDeliveryIT cases
+against RabbitMQ 4.3.6, within 65 real MySQL/Redis/broker IT, and clean Compose
+HTTP/demo/checker. Those results belong to that historical SHA. See the
+[quality workflow results](https://github.com/yibenwulong/seatflow/actions/workflows/ci.yml)
+for each commit's full hosted verification.
 
 
 ## Refund worker
@@ -100,7 +105,7 @@ There is deliberately no attempts<10 filter: an expired tenth attempt must reach
 RefundService so it can retain FAILED. The method returns the number of selected
 IDs attempted, including failures. It does not claim or mutate refund/payment
 rows itself. `RefundService.process(long)` rechecks eligibility and owns all
-order/refund locks, lease fencing, external calls, durable checkpoints, retries
+order/refund locks, stale-failure fencing, external calls, durable checkpoints, retries
 and funds transitions. A failed row is logged with ID and exception class, then
 the worker continues independent rows; the service retains its safe failure phase.
 

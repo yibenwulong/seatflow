@@ -42,7 +42,7 @@ python -m tools.mysql_smoke
 python tools/consistency.py ORDER_ID
 ```
 
-先配置六个 `SEATFLOW_CHECK_MYSQL_*` 变量，详见 [检查器](docs/testing/consistency.md)。它输出订单、明细、当前座位所有者、收款与退款进度的同一数据库快照；返回码为 0（一致）、1（业务不一致或订单不存在）、2（配置或数据库读取失败）。它不会改写或修复数据。
+先配置五个 `SEATFLOW_CHECK_MYSQL_*` 变量，详见 [检查器](docs/testing/consistency.md)。它输出订单、明细、当前座位所有者、收款与退款进度的同一数据库快照；返回码为 0（一致）、1（业务不一致或订单不存在）、2（配置或数据库读取失败）。它不会改写或修复数据。
 
 ## 设计与证据
 
@@ -52,6 +52,8 @@ python tools/consistency.py ORDER_ID
 
 已保留的真实 MySQL 竞争观察包括：32 用户抢一座，1 成功、31 冲突，数据库只有 1 单/1 明细/1 占座；24 个重叠连座请求，4 成功、20 冲突，4 单完整占有 10 座。原始计数见 [JSON](docs/testing/booking-observations.json)。这些是正确性实验，不是吞吐或延迟基准。
 
-合并运行时已通过 Java **59 项快速测试**及打包；工具 **22 项测试**和真实 MySQL 检查器 smoke 已通过。原生 MySQL 8.0.44、Redis 5.0.14.1 环境实际 TCP 演示完成两连座支付与自动退款，检查器确认收退均为 **560.00**、两座恢复可售（[记录](docs/testing/native-demo-observation.json)）。该演示关闭消息发布/监听，启用到期和退款 worker；此工作站没有 Docker/RabbitMQ，消息传输、Compose 和托管 CI 仍待实际执行。项目不声称生产高可用、支付宝沙箱联调或未经实测的 QPS。
+初始审阅提交 `db1d72683ab51f23d626792ebda805c143cfcb5e` 的 [CI 38692223197](https://github.com/yibenwulong/seatflow/actions/runs/38692223197) 三项 job 均为 SUCCESS：59 项 Java 快速测试、65 项真实依赖 IT（含 3 项 RabbitMQ 测试）和 22 项工具测试均通过；使用 MySQL 8.4.11、Redis 7.4.11、RabbitMQ 4.3.6，干净 Compose 实际 HTTP 演示完成 PAID → REFUNDED，检查器确认收退各 560.00、两座 AVAILABLE/无归属、无待处理或 FAILED 退款。这是该历史 SHA 的实测结果；各提交的最新完整验证结果见 [quality workflow](https://github.com/yibenwulong/seatflow/actions/workflows/ci.yml)，旧提交的绿色状态仅适用于该 SHA。
+
+最终修复本地验证为 61 项 Java 快速测试、25 项工具测试、7 项受影响的真实 MySQL IT；这些独立执行次数不与历史重叠测试相加。Windows 工作站没有 Docker/RabbitMQ；此前原生 MySQL 8.0.44、Redis 5.0.14.1 的 TCP 演示仍保留为单独的 [历史记录](docs/testing/native-demo-observation.json)。Flyway/MySQL 兼容性提示及证据范围见 [测试说明](docs/testing/README.md)。项目不宣称生产高可用、支付宝沙箱联调或未经实测的 QPS。
 
 Copyright © 2026 yibenwulong。采用 [MIT License](LICENSE)。

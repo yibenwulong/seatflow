@@ -54,7 +54,7 @@ java -jar target/seatflow-0.1.0-SNAPSHOT.jar --spring.profiles.active=local --se
 python tools/demo.py --base-url http://127.0.0.1:18080
 ```
 
-Point the checker's six database fields at that same deployment and run
+Point the checker's five database fields at that same deployment and run
 `python tools/consistency.py ORDER_ID` using the ID printed by the demo. The
 observed run reached REFUNDED and a consistent 560.00 collection/refund snapshot;
 both selected seats were AVAILABLE with no owner. Publisher/listener were off,
@@ -75,7 +75,17 @@ Official image metadata was inspected on 2026-10-15 for these exact tags:
 
 The multi-stage build uses the project's Maven 3.9.16 Wrapper; it does not depend
 on an assumed Maven image tag. Exact tags reduce unintended changes but are not
-immutable digests. These tags were found in upstream metadata; they have not yet
-been pulled or run on this Docker-less workstation. CI must establish actual
-container startup. Native local evidence uses MySQL **8.0.44** and Redis
-**5.0.14.1**, which must not be conflated with these CI images.
+immutable digests. Initial hosted [CI 38692223197](https://github.com/yibenwulong/seatflow/actions/runs/38692223197)
+at `db1d72683ab51f23d626792ebda805c143cfcb5e` pulled and ran these images, passed
+all three jobs, and completed clean Compose startup, actual HTTP demo and checker
+(560.00 collected/refunded, two AVAILABLE/unowned seats, no pending/failed refunds).
+They were not run on this Docker-less Windows workstation. Native local evidence
+uses MySQL **8.0.44** and Redis **5.0.14.1**. See
+[quality workflow results](https://github.com/yibenwulong/seatflow/actions/workflows/ci.yml)
+for each commit's full hosted verification.
+
+Flyway 11.7.2's upstream MySQL tested-version advisory threshold is 8.1; its
+warning on 8.4 remains visible despite the current migrations and initial 65 IT /
+Compose pass on 8.4.11. See [database contract](database.md). Redis also reported
+a CI host memory-overcommit advisory; no host settings were changed and this
+learning-project run makes no production infrastructure validation claim.

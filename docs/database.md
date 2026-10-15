@@ -42,7 +42,7 @@ gateway/local completion timestamps, attempts, lease, next attempt and error.
 each `(consumer_name,event_id)`. `mock_gateway_payment` and
 `mock_gateway_refund` deliberately have no booking foreign keys: their external
 success facts must commit with independent transactions and survive booking
-rollbacks. The later gateway adapter supplies that transaction boundary.
+rollbacks. The mock gateway implements that independent transaction boundary.
 
 Run fast SQL/API tests with `./mvnw test` (H2 compatibility tests). Run real
 MySQL migration tests with `./mvnw -Pintegration verify`, setting
@@ -51,3 +51,19 @@ MySQL migration tests with `./mvnw -Pintegration verify`, setting
 only for schemas matching `seatflow_it_%`. Each test generates a UUID schema,
 migrates it from empty, checks replay and constraints, and drops that schema
 in `finally`. Missing configuration fails; integration tests never skip.
+
+New admin-created seat prices must be positive, have at most two decimal places,
+and not exceed **2499999999.99**. Four seats then total at most **9999999999.96**,
+within the existing DECIMAL(12,2) order/payment/refund ledger columns. V1 remains
+unchanged. Legacy immutable snapshots still read at their original precision;
+booking rejects any selected total above **9999999999.99** with 400
+INVALID_REQUEST and rolls back the header, items, holds and event together.
+
+Spring Boot 3.5.13 manages Flyway **11.7.2**. Its MySQL adapter's
+[upstream advisory threshold](https://github.com/flyway/flyway/blob/flyway-11.7.2/flyway-database/flyway-mysql/src/main/java/org/flywaydb/database/mysql/MySQLDatabase.java#L243)
+is **8.1**, so MySQL 8.4 produces a known compatibility warning. The initial
+hosted run passed the current migrations, 65 IT and clean Compose on MySQL
+8.4.11; that evidence does not establish compatibility of every future migration.
+The warning stays visible. A future Flyway upgrade requires checking the actual
+managed version and rerunning full CI; no version override or migration edit is
+part of this final review fix.

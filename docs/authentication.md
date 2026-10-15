@@ -12,7 +12,8 @@ return 401 `INVALID_CREDENTIALS` for both unknown and disabled accounts.
 
 Tokens are signed HS256 JWTs with issuer `seatflow`, string `sub` and numeric
 `iat`/`exp`. Default lifetime is one hour (`seatflow.auth.token-lifetime`, ISO
-duration). Expiry uses injected `Clock`; a token is invalid at the exact expiry.
+duration, positive whole seconds only). Expiry uses injected `Clock`; a token is
+invalid at the exact expiry.
 The verifier fixes the algorithm/header and uses constant-time signature
 comparison. Account enabled state and role are reloaded for every request.
 Passwords, password hashes and tokens are not logged; credential-bearing DTOs
@@ -35,11 +36,11 @@ captured identity rather than read a worker thread's context.
 All `/api/v1/**` paths default to requiring an authenticated account;
 `/api/v1/admin/**` additionally requires ADMIN. Public routes are POST login,
 GET catalog reads, and the exact POST `/api/v1/payments/{provider}/notify`
-gateway callback shape. The future payment controller must verify gateway
-signature, merchant, transaction and amount before processing that callback.
-Dev payment completion remains authenticated and must also be local/test gated
-by its future controller. Supplying an invalid Authorization header returns
-401 even on a public route.
+gateway callback shape. The payment controller verifies gateway signature,
+merchant, transaction and amount through the configured adapter before processing
+that callback. Dev payment completion is authenticated, owner-checked and mounted
+only when every active profile is local/test. Supplying an invalid Authorization
+header returns 401 even on a public route.
 
 Failures use `code,message,requestId`, including invalid requests (400), missing
 or invalid bearer identity (401), role rejection (403), missing resources (404),
@@ -52,6 +53,6 @@ characters; otherwise the server generates a UUID. The same request retains
 the same ID whenever the error handler retrieves it.
 
 Identity-only test controllers exist exclusively in test source. Order
-ownership HTTP regression belongs to Task 4 against actual order endpoints;
-the actual admin session-creation endpoint belongs to Task 3. Neither is
-claimed as implemented or exercised by identity probes.
+ownership HTTP regressions exercise the implemented order endpoints against real
+MySQL; admin regressions exercise actual session creation. Identity probes cover
+the shared authentication boundary independently.

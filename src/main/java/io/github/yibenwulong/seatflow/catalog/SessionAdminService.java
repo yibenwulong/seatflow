@@ -54,7 +54,7 @@ public class SessionAdminService {
         if(!request.prices().keySet().equals(zones)) throw invalid("Prices must cover exactly the hall price zones");
         for(BigDecimal price:request.prices().values()) {
             if(!validPrice(price))
-                throw invalid("Prices must be positive DECIMAL(12,2) amounts");
+                throw invalid("Prices must be positive amounts with at most 2 decimal places and no greater than 2499999999.99");
         }
         var key=new GeneratedKeyHolder();
         jdbc.update(connection -> {
@@ -75,7 +75,7 @@ public class SessionAdminService {
 
     private static LocalDateTime utc(Instant value) { return LocalDateTime.ofInstant(value,ZoneOffset.UTC); }
     static boolean validPrice(BigDecimal price) {
-        return price!=null && price.signum()>0 && price.scale()<=2 && price.precision()-(long)price.scale()<=10;
+        return price!=null && price.signum()>0 && price.scale()<=2 && price.compareTo(new BigDecimal("2499999999.99"))<=0;
     }
     private static ApiException invalid(String message) { return new ApiException(HttpStatus.BAD_REQUEST,"INVALID_REQUEST",message); }
     private record HallSeatSnapshot(long id,String rowNo,String seatNo,int position,String blockId,String priceZone,
