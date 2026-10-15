@@ -14,6 +14,11 @@ Normal runtime enables all three flags:
 - `seatflow.messaging.listener-enabled=true`: event and expiry listeners.
 - `seatflow.messaging.expiry-enabled=true`: independent database scan every five seconds.
 
+Each recovery job has a dedicated single-thread scheduler: `seatflowOutboxScheduler`,
+`seatflowExpiryScheduler`, and the reserved `seatflowRefundScheduler` for the
+refund worker. Blocking broker or gateway calls cannot occupy the expiry scan's
+thread. The refund worker must explicitly select its named scheduler.
+
 Set each to `false` for deterministic tests or diagnostic CLI runs. Test profile
 sets all three to false. Broker credentials use standard Spring Boot environment
 variables `SPRING_RABBITMQ_HOST`, `SPRING_RABBITMQ_PORT`,
@@ -71,7 +76,7 @@ Real MySQL/Redis component tests (set database variables from `database.md` and
 `SEATFLOW_IT_REDIS_HOST/PORT`):
 
 ```
-./mvnw -Pintegration -Dit.test=OutboxClaimsIT,ExpiryFallbackIT,MessageReplayIT verify
+./mvnw -Pintegration -Dit.test=OutboxClaimsIT,ExpiryFallbackIT,MessageReplayIT,SchedulingIndependenceIT verify
 ```
 
 Real RabbitMQ tests additionally require the four `SPRING_RABBITMQ_*` variables:

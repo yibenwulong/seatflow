@@ -78,7 +78,17 @@ class OutboxClaimsIT {
                 @Override public boolean markSent(String id,String token) {throw new IllegalStateException("database fault");}
                 @Override public boolean markFailed(String id,String token,Instant next,String reason) {throw new IllegalStateException("database fault");}
             };
-            new OutboxPublisher(broken,event->sent.add(event.eventId()),f.clock).publishBatch();
+            var logger=(ch.qos.logback.classic.Logger)org.slf4j.LoggerFactory.getLogger(OutboxPublisher.class);
+            var captured=new ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent>();
+            boolean additive=logger.isAdditive();captured.start();logger.addAppender(captured);logger.setAdditive(false);
+            try {
+                new OutboxPublisher(broken,event->sent.add(event.eventId()),f.clock).publishBatch();
+                assertThat(captured.list).singleElement().satisfies(log->{
+                    assertThat(log.getLevel()).isEqualTo(ch.qos.logback.classic.Level.WARN);
+                    assertThat(log.getFormattedMessage()).contains("Outbox failure persistence failed; lease will recover event");
+                    assertThat(log.getThrowableProxy().getMessage()).isEqualTo("database fault");
+                });
+            } finally {logger.detachAppender(captured);logger.setAdditive(additive);captured.stop();}
             f.clock.advance(Duration.ofSeconds(30));
             new OutboxPublisher(f.outbox,event->sent.add(event.eventId()),f.clock).publishBatch();
             assertThat(sent).hasSize(2); assertThat(sent.get(0)).isEqualTo(sent.get(1));

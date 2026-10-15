@@ -8,6 +8,15 @@ import org.springframework.scheduling.annotation.*;
 @Configuration
 @EnableScheduling
 public class RabbitMessagingConfig {
+    // Blocking network jobs never share the five-second recovery scan's thread.
+    @Bean("seatflowOutboxScheduler") org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler outboxScheduler() {return scheduler("seatflow-outbox-");}
+    @Bean("seatflowExpiryScheduler") org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler expiryScheduler() {return scheduler("seatflow-expiry-");}
+    @Bean("seatflowRefundScheduler") org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler refundScheduler() {return scheduler("seatflow-refund-");}
+    private static org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler scheduler(String prefix) {
+        var scheduler=new org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler();
+        scheduler.setPoolSize(1);scheduler.setThreadNamePrefix(prefix);scheduler.setRemoveOnCancelPolicy(true);
+        scheduler.setAwaitTerminationSeconds(5);return scheduler;
+    }
     @Bean RabbitRoutes rabbitRoutes(@Value("${seatflow.messaging.namespace:seatflow}") String prefix) {return RabbitRoutes.named(prefix);}
     @Bean RabbitTemplateCustomizer mandatoryPublishing() {return template->template.setMandatory(true);}
     @Bean Declarables orderTopology(RabbitRoutes routes) {return topology(routes);}
@@ -27,10 +36,10 @@ public class RabbitMessagingConfig {
     ExpirySchedule expirySchedule(OrderExpiryJob job) {return new ExpirySchedule(job);}
     static class PublisherSchedule {
         private final OutboxPublisher publisher; PublisherSchedule(OutboxPublisher publisher){this.publisher=publisher;}
-        @Scheduled(fixedDelay=1000,initialDelay=1000) public void run(){publisher.publishBatch();}
+        @Scheduled(scheduler="seatflowOutboxScheduler",fixedDelay=1000,initialDelay=1000) public void run(){publisher.publishBatch();}
     }
     static class ExpirySchedule {
         private final OrderExpiryJob job; ExpirySchedule(OrderExpiryJob job){this.job=job;}
-        @Scheduled(fixedDelay=5000,initialDelay=5000) public void run(){job.scheduledRun();}
+        @Scheduled(scheduler="seatflowExpiryScheduler",fixedDelay=5000,initialDelay=5000) public void run(){job.scheduledRun();}
     }
 }
