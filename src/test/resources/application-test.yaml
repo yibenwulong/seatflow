@@ -6,6 +6,8 @@ spring:
   flyway:
     locations: classpath:db/migration,classpath:db/demo
 seatflow:
+  payment:
+    refund-worker-enabled: false
   messaging:
     publisher-enabled: false
     listener-enabled: false

@@ -29,6 +29,8 @@ server:
     include-message: never
     include-stacktrace: never
 seatflow:
+  payment:
+    refund-worker-enabled: true
   messaging:
     publisher-enabled: true
     listener-enabled: true

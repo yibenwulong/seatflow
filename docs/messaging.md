@@ -17,7 +17,7 @@ Normal runtime enables all three flags:
 Each recovery job has a dedicated single-thread scheduler: `seatflowOutboxScheduler`,
 `seatflowExpiryScheduler`, and the reserved `seatflowRefundScheduler` for the
 refund worker. Blocking broker or gateway calls cannot occupy the expiry scan's
-thread. The refund worker must explicitly select its named scheduler.
+thread. The refund worker explicitly selects its named scheduler.
 
 Set each to `false` for deterministic tests or diagnostic CLI runs. Test profile
 sets all three to false. Broker credentials use standard Spring Boot environment
@@ -89,3 +89,35 @@ Missing broker configuration fails explicitly. These tests use real wall-clock T
 confirm/return and real message delivery; mutable Clock tests only prove business
 expiry. This host has no RabbitMQ, Erlang or Docker; actual broker execution is
 pending CI and must not be reported as locally passed.
+
+
+## Refund worker
+
+`payment.RefundWorker.runOnce(Instant now)` reads at most 200 eligible refund IDs,
+in increasing ID order. Active statuses are PENDING, PROCESSING and
+GATEWAY_SUCCEEDED; a null/due next_attempt_at and a null/expired lease are eligible.
+There is deliberately no attempts<10 filter: an expired tenth attempt must reach
+RefundService so it can retain FAILED. The method returns the number of selected
+IDs attempted, including failures. It does not claim or mutate refund/payment
+rows itself. `RefundService.process(long)` rechecks eligibility and owns all
+order/refund locks, lease fencing, external calls, durable checkpoints, retries
+and funds transitions. A failed row is logged with ID and exception class, then
+the worker continues independent rows; the service retains its safe failure phase.
+
+`seatflow.payment.refund-worker-enabled=true` is the normal default. The test
+profile explicitly sets it false. When enabled, polling runs every second on
+`seatflowRefundScheduler`, isolated from broker publishing and database expiry.
+The worker has no dependency on message delivery for retry eligibility.
+
+Real MySQL worker/recovery verification:
+
+```
+./mvnw -Pintegration -Dit.test=RefundWorkerIT,RefundRecoveryIT verify
+```
+
+RefundWorkerIT proves default-on actual scheduled recovery on the dedicated
+thread, explicit disabling, due/lease/terminal selection including expired tenth
+attempts, continuing another row after a persisted failure, and repeated recovery
+after gateway success/local completion failure using the same refund number with
+one external effect per refund. These are simulated gateway facts stored in real
+MySQL; they do not represent live payment provider verification.
